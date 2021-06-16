@@ -149,7 +149,7 @@ class TrainData_NanoML(TrainData):
         #why wasn't it possible to just do instead of all of the above : simClusterEnergy[simClusterPdgId == 13] = simClusterDepEnergy ?
         
 
-        simClusterEnergyMuCorr = simClusterEnergyNoMu + depEMuOnly
+        simClusterEnergyCorr = simClusterEnergyNoMu + depEMuOnly
 
         simClusterX = tree["MergedSimCluster_impactPoint_x"].array()
         simClusterY = tree["MergedSimCluster_impactPoint_y"].array()
@@ -177,14 +177,13 @@ class TrainData_NanoML(TrainData):
         print("Number of noise hits before", nbefore, "after", nafter)
         print('removed another factor of', nafter/nbefore, ' bad simclusters')
 
+        #bad names because these quatities are associated to Merged Clusters and not hits
         recHitTruthPID = self.truthObjects(simClusterPdgId, recHitSimClusIdx, 0.)
         recHitTruthDepEnergy = self.truthObjects(simClusterDepEnergy, recHitSimClusIdx, 0)
-        recHitTruthEnergy = self.truthObjects(simClusterEnergy, recHitSimClusIdx, 0)
+        recHitTruthEnergyUncorr = self.truthObjects(simClusterEnergy, recHitSimClusIdx, 0)
+        recHitTruthEnergyCorr = self.truthObjects(simClusterEnergyCorr, recHitSimClusIdx, 0)
         low_energy_shower_cutoff = 3
-        recHitTruthEnergy = np.expand_dims(np.where(recHitTruthEnergy>low_energy_shower_cutoff, recHitTruthEnergy,recHitTruthDepEnergy),axis=1)
-
-        #very bad names because these quatities are associated to Merged Clusters and not hits
-        recHitTruthEnergyCorrMu = self.truthObjects(simClusterEnergyMuCorr, recHitSimClusIdx, 0)
+        recHitTruthEnergyCorr = np.expand_dims(np.where(recHitTruthEnergyCorr>low_energy_shower_cutoff, recHitTruthEnergyCorr,recHitTruthDepEnergy),axis=1)
         recHitTruthX = self.truthObjects(simClusterX, recHitSimClusIdx, 0)
         recHitTruthY = self.truthObjects(simClusterY, recHitSimClusIdx, 0)
         recHitTruthZ = self.truthObjects(simClusterZ, recHitSimClusIdx, 0)
@@ -232,7 +231,7 @@ class TrainData_NanoML(TrainData):
         recHitTruthX[recHitSimClusIdx<0] = recHitX[recHitSimClusIdx<0]
         recHitTruthY[recHitSimClusIdx<0] = recHitY[recHitSimClusIdx<0]
         recHitTruthZ[recHitSimClusIdx<0] = recHitZ[recHitSimClusIdx<0]
-        recHitTruthEnergyCorrMu[recHitSimClusIdx<0] = recHitEnergy[recHitSimClusIdx<0]
+        recHitTruthEnergyCorr[recHitSimClusIdx<0] = recHitEnergy[recHitSimClusIdx<0]
         recHitTruthTime[recHitSimClusIdx<0] = recHitTime[recHitSimClusIdx<0]
         
         
@@ -243,7 +242,7 @@ class TrainData_NanoML(TrainData):
         
         truth = np.concatenate([
             np.array(recHitSimClusIdx,dtype='float32'), # 0
-            recHitTruthEnergyCorrMu,
+            recHitTruthEnergyCorr,
             recHitTruthX,
             recHitTruthY,
             recHitTruthZ,  #4
@@ -268,7 +267,7 @@ class TrainData_NanoML(TrainData):
         t_idxarr = SimpleArray(recHitSimClusIdx, offsets, name="recHitTruthClusterIdx")
         
         t_energyarr = SimpleArray(name="recHitTruthEnergy")
-        t_energyarr.createFromNumpy(recHitTruthEnergy, offsets)
+        t_energyarr.createFromNumpy(recHitTruthEnergyCorr, offsets)
         
         t_posarr = SimpleArray(name="recHitTruthPosition")
         t_posarr.createFromNumpy(np.concatenate([recHitTruthX, recHitTruthY],axis=-1), offsets)
@@ -330,7 +329,7 @@ class TrainData_NanoML(TrainData):
     def createTruthDict(self, truth, truthidx=None):
         out = {}
         keys = ['truthHitAssignementIdx',             #np.array(recHitSimClusIdx,dtype='float32'), # 0
-                'truthHitAssignedEnergies',           # recHitTruthEnergyCorrMu,
+                'truthHitAssignedEnergies',           # recHitTruthEnergyCorr,
                 'truthHitAssignedX',                  # recHitTruthX,
                 'truthHitAssignedY',                  # recHitTruthY,
                 'truthHitAssignedZ',                  # recHitTruthZ,  #4

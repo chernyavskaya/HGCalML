@@ -37,8 +37,7 @@ print("n batches")
 n_batches = gen.getNBatches()
 print(n_batches)
 print("probably ready")
-#gpus = tf.config.list_physical_devices('GPU')
-gpus=0
+gpus = tf.config.list_physical_devices('GPU')
 if gpus:
   try:
     # Currently, memory growth needs to be the same across GPUs
