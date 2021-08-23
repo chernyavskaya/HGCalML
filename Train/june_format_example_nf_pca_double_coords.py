@@ -33,7 +33,7 @@ from DeepJetCore.DJCLayers import StopGradient,ScalarMultiply, SelectFeatures, R
 from clr_callback import CyclicLR
 from lossLayers import LLFullObjectCondensation, LLClusterCoordinates
 
-from model_blocks import create_outputs
+from model_blocks import create_outputs,create_outputs_energy_unc
 
 from Layers import LocalClusterReshapeFromNeighbours2,ManualCoordTransform,RaggedGlobalExchange,LocalDistanceScaling,CheckNaN,NeighbourApproxPCA,LocalClusterReshapeFromNeighbours,GraphClusterReshape, SortAndSelectNeighbours, LLLocalClusterCoordinates,DistanceWeightedMessagePassing,CollectNeighbourAverageAndMax,CreateGlobalIndices, LocalClustering, SelectFromIndices, MultiBackGather, KNN, MessagePassing, RobustModel
 from Layers import GooeyBatchNorm #make a new line
@@ -210,7 +210,7 @@ def gravnet_model(Inputs,
     x = Dense(64, activation='elu')(x)
     x = Dense(64, activation='elu')(x)
 
-    pred_beta, pred_ccoords, pred_dist, pred_energy, pred_pos, pred_time, pred_id = create_outputs(x,feat,add_distance_scale=True)
+    pred_beta, pred_ccoords, pred_dist, pred_energy,pred_energy_low_quantile,pred_energy_high_quantile, pred_pos, pred_time, pred_id = create_outputs_energy_unc(x,feat,add_distance_scale=True)
 
     #loss
     pred_beta = LLFullObjectCondensation(print_loss=True,
@@ -231,16 +231,19 @@ def gravnet_model(Inputs,
                                          payload_beta_gradient_damping_strength=0.,
                                          kalpha_damping_strength=0.,#1.,
                                          use_local_distances=True,
+                                         add_energy_unc=True,
                                          name="FullOCLoss"
                                          )([pred_beta, pred_ccoords,
                                             pred_dist,
-                                            pred_energy,
+                                            pred_energy, pred_energy_low_quantile,pred_energy_high_quantile,
                                             pred_pos, pred_time, pred_id,
                                             orig_t_idx, orig_t_energy, orig_t_pos, orig_t_time, orig_t_pid,
                                             row_splits])
 
     model_outputs = [('pred_beta', pred_beta), ('pred_ccoords',pred_ccoords),
        ('pred_energy',pred_energy),
+       ('pred_energy_low_quantile',pred_energy_low_quantile),
+       ('pred_energy_high_quantile',pred_energy_high_quantile),
        ('pred_pos',pred_pos),
        ('pred_time',pred_time),
        ('pred_id',pred_id),
@@ -269,7 +272,7 @@ verbosity = 2
 import os
 
 samplepath=train.val_data.getSamplePath(train.val_data.samples[0])
-# publishpath = 'jkiesele@lxplus.cern.ch:/eos/home-j/jkiesele/www/files/HGCalML_trainings/'+os.path.basename(os.path.normpath(train.outputDir))
+publishpath = 'nchernya@lxplus.cern.ch:/eos/home-n/nchernya/www/files/HGCalML_trainings/'+os.path.basename(os.path.normpath(train.outputDir))
 
 
 cb = []
@@ -302,7 +305,7 @@ cb += [plotClusteringDuringTraining(
     samplefile=samplepath,
     after_n_batches=20,
     on_epoch_end=False,
-    publish=None,
+    publish=None,#publishpath + "_cl_"+str(i),
     use_event=0)
     for i in [0, 2]]
 
@@ -313,7 +316,7 @@ cb += [
         after_n_batches=20,
         batchsize=200000,
         on_epoch_end=False,
-        publish=None,
+        publish=None,#publishpath+"_event_"+ str(0),
         use_event=0)
 
 ]
@@ -325,7 +328,7 @@ cb += [
         after_n_batches=20,
         batchsize=200000,
         on_epoch_end=False,
-        publish=None,
+        publish=None,#publishpath+"_event_"+ str(0),
         use_event=0,
         use_prediction_idx=i,
     )

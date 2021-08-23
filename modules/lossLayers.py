@@ -10,6 +10,11 @@ def huber(x, d):
     losslin = d**2 + 2. * d * (absx - d)
     return tf.where(absx < d, losssq, losslin)
 
+def quantile(x,tau):
+    return tf.maximum(tau*x, (tau-1)*x)
+
+
+
 class LossLayerBase(tf.keras.layers.Layer):
     """Base class for HGCalML loss layers.
     
@@ -250,6 +255,9 @@ class LLFullObjectCondensation(LossLayerBase):
                  super_repulsion=False,
                  use_local_distances=False,
                  energy_weighted_qmin=False,
+                 add_energy_unc=False,
+                 low_energy_tau=0.25,
+                 high_energy_tau=0.75,
                  **kwargs):
         """
         Read carefully before changing parameters
@@ -334,7 +342,11 @@ class LLFullObjectCondensation(LossLayerBase):
         self.super_repulsion=super_repulsion
         self.use_local_distances = use_local_distances
         self.energy_weighted_qmin=energy_weighted_qmin
-        
+        self.add_energy_unc = add_energy_unc
+        self.low_energy_tau = low_energy_tau
+        self.high_energy_tau = high_energy_tau
+
+
         self.loc_time=time.time()
         
         assert kalpha_damping_strength >= 0. and kalpha_damping_strength <= 1.
@@ -378,6 +390,20 @@ class LLFullObjectCondensation(LossLayerBase):
         eloss = self.softclip(eloss, 10.) 
         return eloss
 
+    def calc_energy_unc_loss(self, t_energy, pred_energy_low_quantile, pred_energy_high_quantile): 
+        if not self.energy_loss_weight:
+            return pred_energy**2 #just learn 0
+        
+        #FIXME: this is just for debugging
+        #return (t_energy-pred_energy)**2
+        eloss=0
+        l_low = t_energy-pred_energy_low_quantile
+        l_high = t_energy-pred_energy_high_quantile
+        eloss = quantile(l_low,self.low_energy_tau) + quantile(l_high,self.high_energy_tau) 
+        eloss = self.softclip(eloss, 10.) 
+        return eloss
+
+
     def calc_qmin_weight(self, hitenergy):
         if not self.energy_weighted_qmin:
             return self.q_min
@@ -413,21 +439,34 @@ class LLFullObjectCondensation(LossLayerBase):
         rechit_energy=None
         if self.use_local_distances:
             if self.energy_weighted_qmin:
-                pred_beta, pred_ccoords, pred_distscale, \
-                rechit_energy, \
+                pred_beta, pred_ccoords, pred_distscale,\
+                rechit_energy,\
                 pred_energy, pred_pos, pred_time, pred_id,\
                 t_idx, t_energy, t_pos, t_time, t_pid,\
                 rowsplits = inputs
 
-            else:
-                pred_beta, pred_ccoords, pred_distscale, pred_energy, pred_pos, pred_time, pred_id,\
+            elif self.add_energy_unc:
+                pred_beta, pred_ccoords, pred_distscale, pred_energy,\
+                pred_energy_low_quantile,pred_energy_high_quantile,\
+                pred_pos, pred_time, pred_id,\
                 t_idx, t_energy, t_pos, t_time, t_pid,\
                 rowsplits = inputs
-                
+            else :
+                pred_beta, pred_ccoords, pred_distscale, pred_energy,\
+                pred_pos, pred_time, pred_id,\
+                t_idx, t_energy, t_pos, t_time, t_pid,\
+                rowsplits = inputs
         else:
-            pred_beta, pred_ccoords, pred_energy, pred_pos, pred_time, pred_id,\
-            t_idx, t_energy, t_pos, t_time, t_pid,\
-            rowsplits = inputs
+            if self.add_energy_unc:
+                pred_beta, pred_ccoords, pred_energy,\
+                pred_energy_low_quantile,pred_energy_high_quantile,\
+                pred_pos, pred_time, pred_id,\
+                t_idx, t_energy, t_pos, t_time, t_pid,\
+                rowsplits = inputs
+            else:
+                pred_beta, pred_ccoords, pred_energy, pred_pos, pred_time, pred_id,\
+                t_idx, t_energy, t_pos, t_time, t_pid,\
+                rowsplits = inputs
 
 
         if rowsplits.shape[0] is None:
@@ -443,11 +482,12 @@ class LLFullObjectCondensation(LossLayerBase):
             
         #also kill any gradients for zero weight
         energy_loss = self.energy_loss_weight * self.calc_energy_loss(t_energy, pred_energy)
+        energy_quantiles_loss = self.energy_loss_weight * self.calc_energy_unc_loss(t_energy, pred_energy_low_quantile,pred_energy_high_quantile) 
         position_loss = self.position_loss_weight * self.calc_position_loss(t_pos, pred_pos)
         timing_loss = self.timing_loss_weight * self.calc_timing_loss(t_time, pred_time)
         classification_loss = self.classification_loss_weight * self.calc_classification_loss(t_pid, pred_id)
         
-        full_payload = tf.concat([energy_loss,position_loss,timing_loss,classification_loss], axis=-1)
+        full_payload = tf.concat([energy_loss,position_loss,timing_loss,classification_loss,energy_quantiles_loss], axis=-1)
         
         if self.payload_beta_clip > 0:
             full_payload = tf.where(pred_beta<self.payload_beta_clip, 0., full_payload)
@@ -498,13 +538,14 @@ class LLFullObjectCondensation(LossLayerBase):
         pos_loss    = payload[1]
         time_loss   = payload[2]
         class_loss  = payload[3]
-        
+        energy_unc_loss  = payload[4]
+
         
         #explicit cc damping
         ccdamp = self.cc_damping_strength * (0.02*tf.reduce_mean(pred_ccoords))**4# gently keep them around 0
         
         
-        lossval = att + rep + min_b + noise + energy_loss + pos_loss + time_loss + class_loss + exceed_beta + ccdamp
+        lossval = att + rep + min_b + noise + energy_loss + pos_loss + time_loss + class_loss + exceed_beta + ccdamp + energy_unc_loss
             
         lossval = tf.reduce_mean(lossval)
         
@@ -528,6 +569,7 @@ class LLFullObjectCondensation(LossLayerBase):
                   minbtext, min_b.numpy(),
                   'noise_loss', noise.numpy(),
                   'energy_loss', energy_loss.numpy(),
+                  'energy_unc_loss', energy_unc_loss.numpy(),
                   'pos_loss', pos_loss.numpy(),
                   'time_loss', time_loss.numpy(),
                   'class_loss', class_loss.numpy(),
@@ -576,7 +618,10 @@ class LLFullObjectCondensation(LossLayerBase):
             'repulsion_q_min': self.repulsion_q_min,
             'super_repulsion': self.super_repulsion,
             'use_local_distances': self.use_local_distances,
-            'energy_weighted_qmin': self.energy_weighted_qmin
+            'energy_weighted_qmin': self.energy_weighted_qmin,
+            'add_energy_unc': self.add_energy_unc,
+            'low_energy_tau': self.low_energy_tau,
+            'high_energy_tau': self.high_energy_tau
         }
         base_config = super(LLFullObjectCondensation, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))

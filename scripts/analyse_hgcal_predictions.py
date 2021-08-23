@@ -91,7 +91,13 @@ def main(files, pdfpath, dumppath, soft, database_table_prefix, run_for=-1):
     # 0/0
 
     plotter = HGCalAnalysisPlotter()
+    
+    _, _, hist_res = plt.hist(dataset_analysis_dict['pred_shower_regressed_energy_res'], bins=np.linspace(0,2,50), density=True, facecolor='g', alpha=0.75)
+    plt.xlabel('Energy Resolution')
+    plt.savefig('test_res.png')
 
+
+    
     plotter.add_data_from_analysis_dict(dataset_analysis_dict)
     if len(pdfpath) != 0:
         plotter.write_to_pdf(pdfpath)

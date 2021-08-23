@@ -26,6 +26,7 @@ def convert_dataset_dict_elements_to_numpy(dataset_dict):
     dataset_dict['endcap_num_rechits'] = np.array(dataset_dict['endcap_num_rechits'])
 
     dataset_dict['pred_shower_regressed_energy'] = np.array(dataset_dict['pred_shower_regressed_energy'])
+    dataset_dict['pred_shower_regressed_energy_res'] = np.array(dataset_dict['pred_shower_regressed_energy_res'])
     dataset_dict['pred_shower_matched_energy'] = np.array(dataset_dict['pred_shower_matched_energy'])
     dataset_dict['pred_shower_energy_sum'] = np.array(dataset_dict['pred_shower_energy_sum'])
     dataset_dict['pred_shower_matched_energy_sum'] = np.array(dataset_dict['pred_shower_matched_energy_sum'])

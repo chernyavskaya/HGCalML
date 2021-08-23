@@ -233,6 +233,7 @@ def create_outputs(x, feat, energy=None, n_ccoords=3, n_classes=6, td=TrainData_
                          )(x) #bias has no effect
     
     pred_energy = ScalarMultiply(10.)(Dense(1)(x))
+
     if energy is not None:
         pred_energy = Multiply()([pred_energy,energy])
         
@@ -249,6 +250,46 @@ def create_outputs(x, feat, energy=None, n_ccoords=3, n_classes=6, td=TrainData_
         return pred_beta, pred_ccoords, pred_dist, pred_energy, pred_pos, pred_time, pred_id
     
     return pred_beta, pred_ccoords, pred_energy, pred_pos, pred_time, pred_id
+
+
+
+#new format!
+def create_outputs_energy_unc(x, feat, energy=None, n_ccoords=3, n_classes=6, td=TrainData_OC(), add_features=True, add_distance_scale=False):
+    '''
+    returns pred_beta, pred_ccoords, pred_energy, pred_pos, pred_time, pred_id
+    '''
+    
+    feat = td.createFeatureDict(feat)
+    
+    pred_beta = Dense(1, activation='sigmoid')(x)
+    pred_ccoords = Dense(n_ccoords,
+                         #this initialisation is much better than standard glorot
+                         kernel_initializer=tf.keras.initializers.RandomNormal(mean=0., stddev=10./float(x.shape[-1])),
+                         use_bias=False
+                         )(x) #bias has no effect
+    
+    pred_energy = ScalarMultiply(10.)(Dense(1)(x))
+    pred_energy_low_quantile = ScalarMultiply(10.)(Dense(1)(x))
+    pred_energy_high_quantile = ScalarMultiply(10.)(Dense(1)(x))
+
+    if energy is not None: #not used anymore
+        pred_energy = Multiply()([pred_energy,energy])
+        pred_energy_low_quantile = Multiply()([pred_energy_low_quantile,energy])
+        pred_energy_high_quantile = Multiply()([pred_energy_high_quantile,energy])
+        
+    pred_pos =  Dense(2,use_bias=False)(x)
+    pred_time = ScalarMultiply(10.)(Dense(1)(x))
+    
+    if add_features:
+        pred_pos =  Add()([feat['recHitXY'],pred_pos])
+    pred_id = Dense(n_classes, activation="softmax")(x)
+    
+    if add_distance_scale:
+        pred_dist = Dense(1, activation='sigmoid')(x) 
+        #this needs to be bound otherwise fully anti-correlated with coordates scale
+        return pred_beta, pred_ccoords, pred_dist, pred_energy,pred_energy_low_quantile, pred_energy_high_quantile, pred_pos, pred_time, pred_id
+    
+    return pred_beta, pred_ccoords, pred_energy, pred_energy_low_quantile, pred_energy_high_quantile, pred_pos, pred_time, pred_id
 
 
 

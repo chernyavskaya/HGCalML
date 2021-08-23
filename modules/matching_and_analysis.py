@@ -48,6 +48,7 @@ def build_dataset_analysis_dict():
     data_dict['endcap_total_energy_truth'] = []
 
     data_dict['pred_shower_regressed_energy'] = []
+    data_dict['pred_shower_regressed_energy_res'] = []
     data_dict['pred_shower_matched_energy'] = []
     data_dict['pred_shower_energy_sum'] = []
     data_dict['pred_shower_matched_energy_sum'] = []
@@ -120,6 +121,7 @@ def build_endcap_analysis_dict():
     data_dict['num_showers_per_endcap'] = -1
 
     data_dict['pred_shower_regressed_energy'] = []
+    data_dict['pred_shower_regressed_energy_res'] = []
     data_dict['pred_shower_matched_energy'] = []
     data_dict['pred_shower_energy_sum'] = []
     data_dict['pred_shower_matched_energy_sum'] = []
@@ -192,6 +194,7 @@ def append_endcap_dict_to_dataset_dict(dataset_dict, endcap_dict):
     dataset_dict['endcap_num_rechits'].append(endcap_dict['endcap_num_rechits'])
 
     dataset_dict['pred_shower_regressed_energy'] += endcap_dict['pred_shower_regressed_energy']
+    dataset_dict['pred_shower_regressed_energy_res'] += endcap_dict['pred_shower_regressed_energy_res']
     dataset_dict['pred_shower_matched_energy'] += endcap_dict['pred_shower_matched_energy']
     dataset_dict['pred_shower_energy_sum'] += endcap_dict['pred_shower_energy_sum']
     dataset_dict['pred_shower_matched_energy_sum'] += endcap_dict['pred_shower_matched_energy_sum']
@@ -416,6 +419,8 @@ class HGCalAnalyzer:
 
         self.pred_beta = self.predictions_dict['pred_beta'][:, 0]
         self.pred_energy = self.predictions_dict['pred_energy'][:, 0]
+        self.pred_energy_low_quantile = self.predictions_dict['pred_energy_low_quantile'][:, 0]
+        self.pred_energy_high_quantile = self.predictions_dict['pred_energy_high_quantile'][:, 0]
 
         # self.pred_x = (self.pred_dict['predX'] + self.feat_dict["recHitX"])[:, 0]
         # self.pred_y = (self.pred_dict['predY'] + self.feat_dict["recHitY"])[:, 0]
@@ -609,6 +614,8 @@ class HGCalAnalyzer:
 
         self.pred_shower_representative_hit_idx = pred_shower_representative_hit_idx
         self.pred_shower_energy = [self.pred_energy[x] for x in pred_shower_representative_hit_idx]
+        self.pred_shower_energy_low_quntile = [self.pred_energy_low_quantile[x] for x in pred_shower_representative_hit_idx]
+        self.pred_shower_energy_high_quntile = [self.pred_energy_high_quantile[x] for x in pred_shower_representative_hit_idx]
 
         pred_shower_sid = [pred_sid[x] for x in pred_shower_representative_hit_idx]
 
@@ -683,6 +690,8 @@ class HGCalAnalyzer:
                 sid] if sid in self.sid_to_pred_shower_sid_idx else -1
             if pred_match_shower_idx > -1:
                 predicted_energy = self.pred_shower_energy[pred_match_shower_idx]
+                predicted_energy_low = self.pred_shower_energy_low_quntile[pred_match_shower_idx]
+                predicted_energy_high = self.pred_shower_energy_high_quntile[pred_match_shower_idx]
 
                 self.results_dict['truth_shower_found_or_not'].append(True)
                 self.results_dict['truth_shower_matched_energy_sum'].append(
@@ -758,6 +767,8 @@ class HGCalAnalyzer:
             shower_energy_predicted = self.pred_energy[rep_idx]
             predicted_total_obc += shower_energy_predicted
 
+            shower_energy_resolution = (self.pred_energy_high_quantile[rep_idx]-self.pred_energy_low_quantile[rep_idx])/2./shower_energy_predicted
+
             shower_eta_predicted = 0 #self.pred_x[rep_idx]
             shower_phi_predicted = 0 #self.pred_y[rep_idx]
             shower_energy_sum_predicted = np.sum(self.hit_energy[self.pred_sid == sid])
@@ -766,6 +777,7 @@ class HGCalAnalyzer:
             # print(self.results_dict)
             self.results_dict['pred_shower_sid_merged'].append(sid2)
             self.results_dict['pred_shower_regressed_energy'].append(shower_energy_predicted)
+            self.results_dict['pred_shower_regressed_energy_res'].append(shower_energy_resolution)
             self.results_dict['pred_shower_energy_sum'].append(shower_energy_sum_predicted)
             self.results_dict['pred_shower_regressed_phi'].append(shower_phi_predicted)
             self.results_dict['pred_shower_regressed_eta'].append(shower_eta_predicted)
