@@ -17,6 +17,8 @@ import numpy as np
 np.set_printoptions(threshold=500)
 numpy.set_printoptions(threshold=500)
 import argparse
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import gzip
 import pickle

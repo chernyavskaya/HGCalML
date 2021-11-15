@@ -95,8 +95,8 @@ class HGCalAnalysisPlotter:
         self.response_plot = ResponseFoTruthEnergyPlot()
         self.response_sum_plot = ResponseFoTruthEnergyPlot(y_label='Response (sum/truth)')
 
-        # TODO: for Nadya
-        self.resolution_histogram_plot = GeneralHistogramPlot(bins=np.array([0, 1., 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,16,18, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 120,140,160,180,200]),x_label='Resolution', y_label='Frequency', title='Energy resolution', histogram_log=False)
+        self.resolution_histogram_plot = GeneralHistogramPlot(bins=np.linspace(0,2,50),x_label='Energy Resolution', y_label='Frequency', title='Energy resolution', histogram_log=False)
+        self.pred_energy_histogram_plot = GeneralHistogramPlot(bins=np.array([0, 1., 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,16,18, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 120,140,160,180,200]),x_label='Predicted Energy', y_label='Frequency', title='Predicted Energy', histogram_log=False)
 
         self.dist_thresholds = []
         self.beta_thresholds = []
@@ -126,6 +126,7 @@ class HGCalAnalysisPlotter:
         self.response_plot.write_to_database(database_manager, table_prefix+'_response_plot')
         self.response_sum_plot.write_to_database(database_manager, table_prefix+'_response_sum_plot')
         self.resolution_histogram_plot.write_to_database(database_manager, table_prefix+'_resolution_histogram_plot')
+        self.pred_energy_histogram_plot.write_to_database(database_manager, table_prefix+'_pred_energy_histogram_plot')
         database_manager.flush()
 
     def add_data_from_database(self, database_reading_manager, table_prefix, experiment_name=None):
@@ -134,6 +135,7 @@ class HGCalAnalysisPlotter:
         self.response_plot.read_from_database(database_reading_manager, table_prefix + '_response_plot', experiment_name=experiment_name)
         self.response_sum_plot.read_from_database(database_reading_manager, table_prefix + '_response_sum_plot', experiment_name=experiment_name)
         self.resolution_histogram_plot.read_from_database(database_reading_manager, table_prefix+'_resolution_histogram_plot', experiment_name=experiment_name)
+        self.pred_energy_histogram_plot.read_from_database(database_reading_manager, table_prefix+'_pred_energy_histogram_plot', experiment_name=experiment_name)
 
         tags = self.efficiency_plot.get_tags()
 
@@ -188,8 +190,8 @@ class HGCalAnalysisPlotter:
                                          dataset_analysis_dict['truth_shower_matched_energy_sum'][filter_truth_found], tags)
 
 
-        # TODO: Nadya Just adding a histogram of all the truth shower energy as a placeholder
-        self.resolution_histogram_plot.add_raw_values(dataset_analysis_dict['truth_shower_energy'][filter_truth_found], tags)
+        self.resolution_histogram_plot.add_raw_values(dataset_analysis_dict['pred_shower_regressed_energy_res'], tags)
+        self.pred_energy_histogram_plot.add_raw_values(dataset_analysis_dict['pred_shower_regressed_energy'], tags)
 
     def write_to_pdf(self, pdfpath, formatter=lambda x:''):
         pdf = PdfPages(pdfpath)
@@ -205,6 +207,8 @@ class HGCalAnalysisPlotter:
         self.response_plot.draw(formatter)
         pdf.savefig()
         self.response_sum_plot.draw(formatter)
+        pdf.savefig()
+        self.pred_energy_histogram_plot.draw(formatter)
         pdf.savefig()
         self.resolution_histogram_plot.draw(formatter)
         pdf.savefig()
